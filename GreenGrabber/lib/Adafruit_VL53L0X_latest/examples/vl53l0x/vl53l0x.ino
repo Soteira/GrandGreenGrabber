@@ -1,29 +1,4 @@
-/* 
- * Project myProject
- * Author: Your Name
- * Date: 
- * For comprehensive documentation and examples, please visit:
- * https://docs.particle.io/firmware/best-practices/firmware-template/
- */
-
-// Include Particle Device OS APIs
-#include "Particle.h"
-#include "AdaFruit_VL53L0X.h"
-#include "Stepper.h"
-
-const int CLOSEBUTTON = D3;
-const int SPR = 2048;
-const int IN1 = D5; 
-const int IN2 = D6;
-const int IN3 = D7;
-const int IN4 = D10;
-Stepper myStepper(SPR,IN1,IN3,IN2,IN4);
-int pinState;
-
-SYSTEM_MODE(AUTOMATIC);
-
-// Run the application and system concurrently in separate threads
-SYSTEM_THREAD(ENABLED);
+#include "Adafruit_VL53L0X.h"
 
 Adafruit_VL53L0X lox = Adafruit_VL53L0X();
 
@@ -42,10 +17,6 @@ void setup() {
   }
   // power 
   Serial.println(F("VL53L0X API Simple Ranging example\n\n")); 
-
-  myStepper.setSpeed(10);
-
-  pinMode(CLOSEBUTTON, OUTPUT);
 }
 
 
@@ -62,10 +33,4 @@ void loop() {
   }
     
   delay(100);
-
-  myStepper.step(100);
-
-  pinState = digitalRead(CLOSEBUTTON);
-  Serial.printf("The value of the button is %i \n", pinState);
-
 }
