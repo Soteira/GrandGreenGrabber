@@ -63,7 +63,12 @@ void loop() {
     
   delay(100);
 
+
+ if(pinState > 0){
   myStepper.step(100);
+ } else {
+  myStepper.step(0);
+ }
 
   pinState = digitalRead(CLOSEBUTTON);
   Serial.printf("The value of the button is %i \n", pinState);
