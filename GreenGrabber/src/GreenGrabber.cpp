@@ -14,6 +14,7 @@
 #include "Adafruit_MQTT\Adafruit_MQTT_SPARK.h"
 #include "Adafruit_MQTT\Adafruit_MQTT.h"
 #include "credentials.h"
+#include "Adafruit_GPS.h"
 
 /************ Global State (you don't need to change this!) ***   ***************/ 
 TCPClient TheClient; 
@@ -39,6 +40,19 @@ const int IN3 = D7;
 const int IN4 = D10;
 Stepper myStepper(SPR,IN1,IN3,IN2,IN4);
 int pinState;
+
+void getGPS(float *latitude, float *longitude, float *altitude, int *satellites);
+Adafruit_GPS GPS(&Wire);
+
+// Define Constants
+const int TIMEZONE = -6;
+const unsigned int UPDATE = 30000;
+int OLED_RESET = -1;
+
+// Declare Variables 
+float lat, lon, alt;
+int sat;
+unsigned int lastGPS;
 
 void MQTT_connect();
 bool MQTT_ping();
@@ -81,6 +95,13 @@ void setup() {
   // Setup MQTT subscription
   mqtt.subscribe(&subFeed);
 
+  //Iinitialization for the GPS signal
+  GPS.begin(0x10);  // The I2C address to use is 0x10
+  GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
+  GPS.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ); 
+  GPS.sendCommand(PGCMD_ANTENNA);
+  delay(1000);
+  GPS.println(PMTK_Q_RELEASE);
 }
 
 
@@ -130,6 +151,22 @@ void loop() {
     lastTime = millis();
   }
 
+    // Get data from GSP unit (best if you do this continuously)
+  GPS.read();
+  if (GPS.newNMEAreceived()) {
+    if (!GPS.parse(GPS.lastNMEA())) {
+      return;
+    }   
+  }
+
+if (millis() - lastGPS > UPDATE) {
+    lastGPS = millis(); // reset the timer
+    getGPS(&lat,&lon,&alt,&sat);
+    Serial.printf("\n=================================================================\n");
+    Serial.printf("Lat: %0.6f, Lon: %0.6f, Alt: %0.6f, Satellites: %i\n",lat, lon, alt, sat);
+    Serial.printf("=================================================================\n\n");
+  }
+
 }
 
 void MQTT_connect() {
@@ -165,4 +202,25 @@ bool MQTT_ping() {
       last = millis();
   }
   return pingStatus;
+}
+
+
+void getGPS(float *latitude, float *longitude, float *altitude, int *satellites){
+  int theHour;
+
+  theHour = GPS.hour + TIMEZONE;
+  if(theHour < 0) {
+    theHour = theHour + 24;
+  }
+    
+  Serial.printf("Time: %02i:%02i:%02i:%03i\n",theHour, GPS.minute, GPS.seconds, GPS.milliseconds);
+  Serial.printf("Dates: %02i-%02i-20%02i\n", GPS.month, GPS.day, GPS.year);
+  Serial.printf("Fix: %i, Quality: %i",(int)GPS.fix,(int)GPS.fixquality);
+    if (GPS.fix) {
+      *latitude = GPS.latitudeDegrees;
+      *longitude = GPS.longitudeDegrees; 
+      *altitude = GPS.altitude;
+      *satellites = (int)GPS.satellites;
+
+    }
 }
