@@ -41,7 +41,7 @@ const int IN2 = D6;
 const int IN3 = D7;
 const int IN4 = D10;
 Stepper myStepper(SPR,IN1,IN3,IN2,IN4);
-int pinState;
+bool pinState;
 
 void getGPS(float *latitude, float *longitude, float *altitude, int *satellites);
 Adafruit_GPS GPS(&Wire);
@@ -65,6 +65,7 @@ SYSTEM_MODE(AUTOMATIC);
 SYSTEM_THREAD(ENABLED);
 
 Adafruit_VL53L0X lox = Adafruit_VL53L0X();
+VL53L0X_RangingMeasurementData_t measure;
 
 void setup() {
   Serial.begin(115200);
@@ -108,7 +109,6 @@ void setup() {
 
 
 void loop() {
-  VL53L0X_RangingMeasurementData_t measure;
     
   Serial.print("Reading a measurement... ");
   lox.rangingTest(&measure, false); // pass in 'true' to get debug data printout!
@@ -118,17 +118,15 @@ void loop() {
   } else {
     Serial.println(" out of range ");
   }
-    
-  delay(100);
-
-
- if(pinState > 0){
-  myStepper.step(100);
- } else {
-  myStepper.step(0);
- }
 
   pinState = digitalRead(CLOSEBUTTON);
+  if(pinState){
+    myStepper.step(100);
+    } else {
+    myStepper.step(0);
+  }
+
+  
   Serial.printf("The value of the button is %i \n", pinState);
 
   MQTT_connect();
@@ -164,9 +162,9 @@ void loop() {
 if (millis() - lastGPS > UPDATE) {
     lastGPS = millis(); // reset the timer
     getGPS(&lat,&lon,&alt,&sat);
-    Serial.printf("\n=================================================================\n");
+    //Serial.printf("\n=================================================================\n");
     Serial.printf("Lat: %0.6f, Lon: %0.6f, Alt: %0.6f, Satellites: %i\n",lat, lon, alt, sat);
-    Serial.printf("=================================================================\n\n");
+    //Serial.printf("=================================================================\n\n");
   }
 
 }
