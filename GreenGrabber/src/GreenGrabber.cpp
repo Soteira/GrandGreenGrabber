@@ -8,6 +8,7 @@
 
 // Include Particle Device OS APIs
 #include "Particle.h"
+# include <JsonParserGeneratorRK.h>
 #include "AdaFruit_VL53L0X.h"
 #include "Stepper.h"
 #include <Adafruit_MQTT.h>
@@ -25,8 +26,9 @@ Adafruit_MQTT_SPARK mqtt(&TheClient,AIO_SERVER,AIO_SERVERPORT,AIO_USERNAME,AIO_K
 /****************************** Feeds ***************************************/ 
 // Setup Feeds to publish or subscribe 
 // Notice MQTT paths for AIO follow the form: <username>/feeds/<feedname> 
-Adafruit_MQTT_Subscribe subFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/buttonOnOff"); 
-Adafruit_MQTT_Publish pubFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/randomNumber");
+Adafruit_MQTT_Subscribe GPSsubFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/GPSCoordinates"); 
+//Adafruit_MQTT_Publish pubFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/randomNumber");
+Adafruit_MQTT_Publish GPSFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/GPSCoordinates");
 
 
 float pubValue;
@@ -93,7 +95,7 @@ void setup() {
   Serial.printf("\n\n");
 
   // Setup MQTT subscription
-  mqtt.subscribe(&subFeed);
+  mqtt.subscribe(&GPSsubFeed);
 
   //Iinitialization for the GPS signal
   GPS.begin(0x10);  // The I2C address to use is 0x10
@@ -136,15 +138,15 @@ void loop() {
 
    Adafruit_MQTT_Subscribe *subscription;
   while ((subscription = mqtt.readSubscription(10000))) {
-    if (subscription == &subFeed) {
-      subValue = atoi((char *)subFeed.lastread);
+    if (subscription == &GPSsubFeed) {
+      subValue = atoi((char *)GPSsubFeed.lastread);
       Serial.printf("subValue is: %i \n", subValue);
     }
   }
 
     if((millis()-lastTime > 6000)) {
     if(mqtt.Update()) {
-      pubFeed.publish(pubValue);
+      GPSFeed.publish(lat);
       Serial.printf("Publishing %0.2f \n",pubValue); 
        //Serial.printf("Current random number is %i \n", num);
       } 
@@ -223,4 +225,15 @@ void getGPS(float *latitude, float *longitude, float *altitude, int *satellites)
       *satellites = (int)GPS.satellites;
 
     }
+}
+
+void createEventPayLoad (float latitude, float longitude) {
+JsonWriterStatic<256> jw;
+  {
+    JsonWriterAutoObject obj(&jw);
+
+      jw.insertKeyValue ("lat", latitude );
+      jw.insertKeyValue ("lon", longitude );
+  }
+  GPSFeed.publish(jw.getBuffer());
 }
