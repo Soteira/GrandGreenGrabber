@@ -42,6 +42,7 @@ const int IN3 = D7;
 const int IN4 = D10;
 Stepper myStepper(SPR,IN1,IN3,IN2,IN4);
 bool pinState;
+void createEventPayLoad(float latitude, float longitude);
 
 void getGPS(float *latitude, float *longitude, float *altitude, int *satellites);
 Adafruit_GPS GPS(&Wire);
@@ -109,6 +110,13 @@ void setup() {
 
 
 void loop() {
+     // Get data from GSP unit (best if you do this continuously)
+  GPS.read();
+  if (GPS.newNMEAreceived()) {
+    if (!GPS.parse(GPS.lastNMEA())) {
+      return;
+    }   
+  }
     
   Serial.print("Reading a measurement... ");
   lox.rangingTest(&measure, false); // pass in 'true' to get debug data printout!
@@ -142,22 +150,16 @@ void loop() {
     }
   }
 
-    if((millis()-lastTime > 6000)) {
-    if(mqtt.Update()) {
-      GPSFeed.publish(lat);
-      Serial.printf("Publishing %0.2f \n",pubValue); 
+   // if((millis()-lastTime > 6000)) {
+   // if(mqtt.Update()) {
+    //  GPSFeed.publish(lat);
+    //  Serial.printf("Publishing %0.2f \n",pubValue); 
        //Serial.printf("Current random number is %i \n", num);
-      } 
-    lastTime = millis();
-  }
+    //  } 
+   // lastTime = millis();
+  //}
 
-    // Get data from GSP unit (best if you do this continuously)
-  GPS.read();
-  if (GPS.newNMEAreceived()) {
-    if (!GPS.parse(GPS.lastNMEA())) {
-      return;
-    }   
-  }
+ 
 
 if (millis() - lastGPS > UPDATE) {
     lastGPS = millis(); // reset the timer
@@ -221,7 +223,7 @@ void getGPS(float *latitude, float *longitude, float *altitude, int *satellites)
       *longitude = GPS.longitudeDegrees; 
       *altitude = GPS.altitude;
       *satellites = (int)GPS.satellites;
-
+      createEventPayLoad(*latitude, *longitude);
     }
 }
 
