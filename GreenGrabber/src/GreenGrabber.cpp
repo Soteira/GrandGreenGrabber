@@ -8,14 +8,15 @@
 
 // Include Particle Device OS APIs
 #include "Particle.h"
-# include <JsonParserGeneratorRK.h>
+#include <JsonParserGeneratorRK.h>
+#include "Adafruit_GPS.h"
 #include "AdaFruit_VL53L0X.h"
 #include "Stepper.h"
 #include <Adafruit_MQTT.h>
 #include "Adafruit_MQTT\Adafruit_MQTT_SPARK.h"
 #include "Adafruit_MQTT\Adafruit_MQTT.h"
 #include "credentials.h"
-#include "Adafruit_GPS.h"
+
 
 /************ Global State (you don't need to change this!) ***   ***************/ 
 TCPClient TheClient; 
@@ -29,19 +30,20 @@ Adafruit_MQTT_SPARK mqtt(&TheClient,AIO_SERVER,AIO_SERVERPORT,AIO_USERNAME,AIO_K
 Adafruit_MQTT_Subscribe GPSsubFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/GPSCoordinates"); 
 //Adafruit_MQTT_Publish pubFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/randomNumber");
 Adafruit_MQTT_Publish GPSFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/GPSCoordinates");
+Adafruit_MQTT_Subscribe GreenGrabberControls = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/GreenGrabberControls");
 
 
 float pubValue;
 int subValue;
 unsigned int last, lastTime;
-const int CLOSEBUTTON = D3;
+const int CLOSEBUTTON = D4;
 const int SPR = 2048;
 const int IN1 = D5; 
 const int IN2 = D6;
 const int IN3 = D7;
 const int IN4 = D10;
 Stepper myStepper(SPR,IN1,IN3,IN2,IN4);
-bool pinState;
+bool buttonPinState;
 void createEventPayLoad(float latitude, float longitude);
 
 void getGPS(float *latitude, float *longitude, float *altitude, int *satellites);
@@ -84,8 +86,7 @@ void setup() {
   // power 
   Serial.println(F("VL53L0X API Simple Ranging example\n\n")); 
 
-  myStepper.setSpeed(10);
-
+  myStepper.setSpeed(15);
   pinMode(CLOSEBUTTON, OUTPUT);
 
     // Connect to Internet but not Particle Cloud
@@ -127,29 +128,37 @@ void loop() {
     Serial.println(" out of range ");
   }
 
-  pinState = digitalRead(CLOSEBUTTON);
-  if(pinState){
-    myStepper.step(100);
+  buttonPinState = digitalRead(CLOSEBUTTON);
+  if(buttonPinState){
+    myStepper.step(-1000);
     } else {
     myStepper.step(0);
   }
 
   
-  Serial.printf("The value of the button is %i \n", pinState);
+  Serial.printf("The value of the button is %s \n", buttonPinState ? "true" : "false");
 
   MQTT_connect();
   MQTT_ping();
 
-  pubValue = random(10000);
+  pubValue = random(100);
 
-   Adafruit_MQTT_Subscribe *subscription;
-  while ((subscription = mqtt.readSubscription(10000))) {
-    if (subscription == &GPSsubFeed) {
+   Adafruit_MQTT_Subscribe *subscription1;
+  while ((subscription1 = mqtt.readSubscription(100))) {
+    if (subscription1 == &GPSsubFeed) {
       subValue = atoi((char *)GPSsubFeed.lastread);
       Serial.printf("subValue is: %i \n", subValue);
     }
   }
 
+    // this is our 'wait for incoming subscription packets' busy subloop 
+  Adafruit_MQTT_Subscribe *subscription2;
+  while ((subscription2 = mqtt.readSubscription (100))) {
+    if (subscription2 == &GreenGrabberControls) {
+      buttonPinState = atoi((char *)GreenGrabberControls.lastread);
+      Serial.printf("subValue is: %i \n", buttonPinState);
+    }
+  }
    // if((millis()-lastTime > 6000)) {
    // if(mqtt.Update()) {
     //  GPSFeed.publish(lat);
