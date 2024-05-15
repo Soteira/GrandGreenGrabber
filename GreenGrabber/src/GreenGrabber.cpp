@@ -26,11 +26,9 @@ Adafruit_MQTT_SPARK mqtt(&TheClient,AIO_SERVER,AIO_SERVERPORT,AIO_USERNAME,AIO_K
 
 /****************************** Feeds ***************************************/ 
 // Setup Feeds to publish or subscribe 
-// Notice MQTT paths for AIO follow the form: <username>/feeds/<feedname> 
-Adafruit_MQTT_Subscribe GPSsubFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/GPSCoordinates"); 
-//Adafruit_MQTT_Publish pubFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/randomNumber");
 Adafruit_MQTT_Publish GPSFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/GPSCoordinates");
-Adafruit_MQTT_Subscribe GreenGrabberControls = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/GreenGrabberControls");
+Adafruit_MQTT_Subscribe GreenGrabberControls = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/greengrabbercontrols");
+Adafruit_MQTT_Publish TOFFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/TOFSensor");
 
 
 float pubValue;
@@ -44,6 +42,7 @@ const int IN3 = D7;
 const int IN4 = D10;
 Stepper myStepper(SPR,IN1,IN3,IN2,IN4);
 bool buttonPinState;
+bool virtualButtonState;
 void createEventPayLoad(float latitude, float longitude);
 
 void getGPS(float *latitude, float *longitude, float *altitude, int *satellites);
@@ -98,7 +97,7 @@ void setup() {
   Serial.printf("\n\n");
 
   // Setup MQTT subscription
-  mqtt.subscribe(&GPSsubFeed);
+  mqtt.subscribe(&GreenGrabberControls);
 
   //Iinitialization for the GPS signal
   GPS.begin(0x10);  // The I2C address to use is 0x10
@@ -111,6 +110,7 @@ void setup() {
 
 
 void loop() {
+
      // Get data from GSP unit (best if you do this continuously)
   GPS.read();
   if (GPS.newNMEAreceived()) {
@@ -119,6 +119,17 @@ void loop() {
     }   
   }
     
+  MQTT_connect();
+  MQTT_ping();
+
+  if (millis() - lastGPS > UPDATE) {
+    lastGPS = millis(); // reset the timer
+    getGPS(&lat,&lon,&alt,&sat);
+    //Serial.printf("\n=================================================================\n");
+    Serial.printf("Lat: %0.6f, Lon: %0.6f, Alt: %0.6f, Satellites: %i\n",lat, lon, alt, sat);
+    //Serial.printf("=================================================================\n\n");
+  }
+
   Serial.print("Reading a measurement... ");
   lox.rangingTest(&measure, false); // pass in 'true' to get debug data printout!
 
@@ -135,30 +146,24 @@ void loop() {
     myStepper.step(0);
   }
 
-  
   Serial.printf("The value of the button is %s \n", buttonPinState ? "true" : "false");
 
-  MQTT_connect();
-  MQTT_ping();
-
   pubValue = random(100);
-
-   Adafruit_MQTT_Subscribe *subscription1;
-  while ((subscription1 = mqtt.readSubscription(100))) {
-    if (subscription1 == &GPSsubFeed) {
-      subValue = atoi((char *)GPSsubFeed.lastread);
-      Serial.printf("subValue is: %i \n", subValue);
-    }
-  }
 
     // this is our 'wait for incoming subscription packets' busy subloop 
   Adafruit_MQTT_Subscribe *subscription2;
   while ((subscription2 = mqtt.readSubscription (100))) {
     if (subscription2 == &GreenGrabberControls) {
-      buttonPinState = atoi((char *)GreenGrabberControls.lastread);
-      Serial.printf("subValue is: %i \n", buttonPinState);
+      virtualButtonState = atoi((char *)GreenGrabberControls.lastread);
+      Serial.printf("subValue is: %i \n", virtualButtonState);
     }
   }
+
+    if(virtualButtonState){
+    myStepper.step(-100);
+    } else {
+    myStepper.step(0);
+    }
    // if((millis()-lastTime > 6000)) {
    // if(mqtt.Update()) {
     //  GPSFeed.publish(lat);
@@ -167,16 +172,6 @@ void loop() {
     //  } 
    // lastTime = millis();
   //}
-
- 
-
-if (millis() - lastGPS > UPDATE) {
-    lastGPS = millis(); // reset the timer
-    getGPS(&lat,&lon,&alt,&sat);
-    //Serial.printf("\n=================================================================\n");
-    Serial.printf("Lat: %0.6f, Lon: %0.6f, Alt: %0.6f, Satellites: %i\n",lat, lon, alt, sat);
-    //Serial.printf("=================================================================\n\n");
-  }
 
 }
 
