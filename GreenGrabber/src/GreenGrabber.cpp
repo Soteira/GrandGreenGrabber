@@ -28,7 +28,8 @@ Adafruit_MQTT_SPARK mqtt(&TheClient,AIO_SERVER,AIO_SERVERPORT,AIO_USERNAME,AIO_K
 // Setup Feeds to publish or subscribe 
 Adafruit_MQTT_Publish GPSFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/GPSCoordinates");
 Adafruit_MQTT_Subscribe GreenGrabberControls = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/greengrabbercontrols");
-Adafruit_MQTT_Publish TOFFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/TOFSensor");
+Adafruit_MQTT_Publish TOFFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/GrabberTOF");
+Adafruit_MQTT_Subscribe GreenGrabberopen = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/greengrabberopen");
 
 
 float pubValue;
@@ -41,9 +42,12 @@ const int IN2 = D6;
 const int IN3 = D7;
 const int IN4 = D10;
 Stepper myStepper(SPR,IN1,IN3,IN2,IN4);
-bool buttonPinState;
+bool buttonPinState1;
 bool virtualButtonState;
+bool virtualButtonState2;
 void createEventPayLoad(float latitude, float longitude);
+int lastPublish;
+const int RESETVALUE = 10000;
 
 void getGPS(float *latitude, float *longitude, float *altitude, int *satellites);
 Adafruit_GPS GPS(&Wire);
@@ -96,8 +100,9 @@ void setup() {
   }
   Serial.printf("\n\n");
 
-  // Setup MQTT subscription
+  // Setup MQTT subscriptions
   mqtt.subscribe(&GreenGrabberControls);
+  mqtt.subscribe(&GreenGrabberopen);
 
   //Iinitialization for the GPS signal
   GPS.begin(0x10);  // The I2C address to use is 0x10
@@ -139,21 +144,21 @@ void loop() {
     Serial.println(" out of range ");
   }
 
-  buttonPinState = digitalRead(CLOSEBUTTON);
-  if(buttonPinState){
+  buttonPinState1 = digitalRead(CLOSEBUTTON);
+  if(buttonPinState1){
     myStepper.step(-1000);
     } else {
     myStepper.step(0);
   }
 
-  Serial.printf("The value of the button is %s \n", buttonPinState ? "true" : "false");
+  Serial.printf("The value of the button is %s \n", buttonPinState1 ? "true" : "false");
 
   pubValue = random(100);
 
     // this is our 'wait for incoming subscription packets' busy subloop 
-  Adafruit_MQTT_Subscribe *subscription2;
-  while ((subscription2 = mqtt.readSubscription (100))) {
-    if (subscription2 == &GreenGrabberControls) {
+  Adafruit_MQTT_Subscribe *subscription1;
+  while ((subscription1 = mqtt.readSubscription (100))) {
+    if (subscription1 == &GreenGrabberControls) {
       virtualButtonState = atoi((char *)GreenGrabberControls.lastread);
       Serial.printf("subValue is: %i \n", virtualButtonState);
     }
@@ -164,6 +169,27 @@ void loop() {
     } else {
     myStepper.step(0);
     }
+
+    Adafruit_MQTT_Subscribe *subscription2;
+  while ((subscription2 = mqtt.readSubscription (100))) {
+    if (subscription2 == &GreenGrabberopen) {
+      virtualButtonState2 = atoi((char *)GreenGrabberopen.lastread);
+      Serial.printf("subValue is: %i \n", virtualButtonState2);
+    }
+  }
+
+if (millis() - lastPublish > RESETVALUE) {
+    lastPublish = millis();
+
+    TOFFeed.publish(measure.RangeMilliMeter);
+  }
+
+    if(virtualButtonState2){
+      myStepper.step(100);
+    } else {
+      myStepper.step(0);
+    }
+  
    // if((millis()-lastTime > 6000)) {
    // if(mqtt.Update()) {
     //  GPSFeed.publish(lat);
