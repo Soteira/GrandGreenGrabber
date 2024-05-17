@@ -31,7 +31,7 @@ Adafruit_MQTT_Subscribe GreenGrabberControls = Adafruit_MQTT_Subscribe(&mqtt, AI
 Adafruit_MQTT_Publish TOFFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/GrabberTOF");
 Adafruit_MQTT_Subscribe GreenGrabberopen = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/greengrabberopen");
 
-
+//Declarations
 float pubValue;
 int subValue;
 unsigned int last, lastTime;
@@ -49,6 +49,7 @@ void createEventPayLoad(float latitude, float longitude);
 int lastPublish;
 const int RESETVALUE = 10000;
 
+//Setup GPS declarations
 void getGPS(float *latitude, float *longitude, float *altitude, int *satellites);
 Adafruit_GPS GPS(&Wire);
 
@@ -62,6 +63,7 @@ float lat, lon, alt;
 int sat;
 unsigned int lastGPS;
 
+//connect to MQTT
 void MQTT_connect();
 bool MQTT_ping();
 
@@ -81,6 +83,7 @@ void setup() {
     delay(1);
   }
   
+  //Print whether the Time of Flight sensor is working
   Serial.println("Adafruit VL53L0X test");
   if (!lox.begin()) {
     Serial.println(F("Failed to boot VL53L0X"));
@@ -89,7 +92,10 @@ void setup() {
   // power 
   Serial.println(F("VL53L0X API Simple Ranging example\n\n")); 
 
+  //Set Stepper motor speed
   myStepper.setSpeed(15);
+
+  //Setup the pin for the button function
   pinMode(CLOSEBUTTON, OUTPUT);
 
     // Connect to Internet but not Particle Cloud
@@ -116,7 +122,7 @@ void setup() {
 
 void loop() {
 
-     // Get data from GSP unit (best if you do this continuously)
+     // Get data from GPS unit (best if you do this continuously)
   GPS.read();
   if (GPS.newNMEAreceived()) {
     if (!GPS.parse(GPS.lastNMEA())) {
@@ -127,6 +133,7 @@ void loop() {
   MQTT_connect();
   MQTT_ping();
 
+  //Setup GPS updates at regular intervals
   if (millis() - lastGPS > UPDATE) {
     lastGPS = millis(); // reset the timer
     getGPS(&lat,&lon,&alt,&sat);
@@ -144,6 +151,7 @@ void loop() {
     Serial.println(" out of range ");
   }
 
+  //Setup reaction to holding the physical button
   buttonPinState1 = digitalRead(CLOSEBUTTON);
   if(buttonPinState1){
     myStepper.step(-1000);
@@ -151,6 +159,7 @@ void loop() {
     myStepper.step(0);
   }
 
+  //Sets the pringting of whether the button is pressed from 0/1 to true/false
   Serial.printf("The value of the button is %s \n", buttonPinState1 ? "true" : "false");
 
   pubValue = random(100);
@@ -164,12 +173,14 @@ void loop() {
     }
   }
 
+    //Sets the motor to rotate clockwise if the close virtual button is presssed
     if(virtualButtonState){
     myStepper.step(-100);
     } else {
     myStepper.step(0);
     }
 
+    //updates from packets.  Virtually identical to previous block but for the open button.
     Adafruit_MQTT_Subscribe *subscription2;
   while ((subscription2 = mqtt.readSubscription (100))) {
     if (subscription2 == &GreenGrabberopen) {
@@ -178,26 +189,19 @@ void loop() {
     }
   }
 
+//places a timer on the 
 if (millis() - lastPublish > RESETVALUE) {
     lastPublish = millis();
 
     TOFFeed.publish(measure.RangeMilliMeter);
   }
 
+    //Sets the motor to rotate clockwise if the open virtual button is presssed
     if(virtualButtonState2){
       myStepper.step(100);
     } else {
       myStepper.step(0);
     }
-  
-   // if((millis()-lastTime > 6000)) {
-   // if(mqtt.Update()) {
-    //  GPSFeed.publish(lat);
-    //  Serial.printf("Publishing %0.2f \n",pubValue); 
-       //Serial.printf("Current random number is %i \n", num);
-    //  } 
-   // lastTime = millis();
-  //}
 
 }
 
@@ -220,10 +224,12 @@ void MQTT_connect() {
   Serial.printf("MQTT Connected!\n");
 }
 
+//Defining ping for MQTT
 bool MQTT_ping() {
   static unsigned int last;
   bool pingStatus;
-
+  
+  //Timer to pinging and updating the MQTT connection
   if ((millis()-last)>120000) {
       Serial.printf("Pinging MQTT \n");
       pingStatus = mqtt.ping();
@@ -236,15 +242,17 @@ bool MQTT_ping() {
   return pingStatus;
 }
 
-
+//creates a set of values to hold the gps data 
 void getGPS(float *latitude, float *longitude, float *altitude, int *satellites){
   int theHour;
 
+  //Sets the time for the GPS system
   theHour = GPS.hour + TIMEZONE;
   if(theHour < 0) {
     theHour = theHour + 24;
   }
     
+    //Serially prints GPS data and uses the eventpayloa with existing latitude and longitude data
   Serial.printf("Time: %02i:%02i:%02i:%03i\n",theHour, GPS.minute, GPS.seconds, GPS.milliseconds);
   Serial.printf("Dates: %02i-%02i-20%02i\n", GPS.month, GPS.day, GPS.year);
   Serial.printf("Fix: %i, Quality: %i",(int)GPS.fix,(int)GPS.fixquality);
@@ -257,6 +265,7 @@ void getGPS(float *latitude, float *longitude, float *altitude, int *satellites)
     }
 }
 
+//Creates a payload system to send latitude and longitude data for publication on Adafruit.io
 void createEventPayLoad (float latitude, float longitude) {
 JsonWriterStatic<256> jw;
   {
